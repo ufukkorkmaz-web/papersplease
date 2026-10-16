@@ -1,0 +1,814 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Checkpoint Marlow</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
+<style>
+/* Layout: HUD strip on top, then a two-column booth. Left: pixel scene, speech bar, desk with draggable papers. Right: rulebook. Stacks on phones. Single dark look by choice. */
+:root{
+  --bg:#171814;
+  --panel:#24251e;
+  --desk:#3a392e;
+  --desk-edge:#1f2019;
+  --paper:#d9d3b6;
+  --paper-dark:#bfb894;
+  --ink:#2a2922;
+  --ink-soft:#5b5845;
+  --amber:#e0a43c;
+  --red:#b3322b;
+  --green:#4a8a3f;
+  --line:#0e0e0b;
+  --font-display:'Silkscreen','Courier New',monospace;
+  --font-body:'VT323','Courier New',monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  overflow:hidden;
+  background:var(--bg);
+  color:var(--paper);
+  font-family:var(--font-body);
+  font-size:20px;
+  line-height:1.15;
+  padding-block:8px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+button{font:inherit;color:inherit}
+#app{max-width:1120px;height:100%;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+
+/* HUD */
+.hud{flex:none;display:flex;flex-wrap:wrap;align-items:stretch;gap:4px 14px;background:var(--panel);border:3px solid var(--line);padding:5px 12px}
+.brand{font-family:var(--font-display);font-weight:700;font-size:14px;letter-spacing:.08em;color:var(--amber);align-self:center;margin-right:auto}
+.stat{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat small{font-family:var(--font-display);font-size:8px;letter-spacing:.12em;color:#9a9578}
+.stat span{font-size:22px;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat span.warn{color:var(--amber)}
+.tools{display:flex;gap:6px;align-self:center;flex-wrap:wrap}
+.tbtn{font-family:var(--font-display);font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:8px 10px;background:#34352b;border:2px solid var(--line);cursor:pointer}
+.tbtn:hover{background:#42433a}
+
+/* Main grid */
+.main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 290px;grid-template-rows:minmax(0,1fr);gap:10px;align-items:stretch}
+.left{min-width:0;min-height:0;display:flex;flex-direction:column}
+@media (max-width:860px){.main{grid-template-columns:minmax(0,1fr)}}
+
+/* Scene */
+.scene{flex:0 0 clamp(110px,26vh,250px);border:3px solid var(--line);background:#000;line-height:0;overflow:hidden}
+.scene canvas{width:100%;height:100%;display:block;object-fit:cover;object-position:50% 72%;image-rendering:pixelated}
+.speech{flex:none;height:60px;overflow:hidden;background:#0c0c0a;color:var(--amber);padding:5px 12px;font-size:20px;line-height:1.05;border:3px solid var(--line);border-top:0}
+.speech b{font-family:var(--font-display);font-size:9px;letter-spacing:.12em;color:#8d8868;display:block;margin-bottom:3px;font-weight:400}
+
+/* Desk */
+.desk{position:relative;flex:1;min-height:0;margin-top:8px;border:3px solid var(--line);overflow:hidden;
+  background:var(--desk) repeating-linear-gradient(90deg,rgba(0,0,0,.07) 0 2px,transparent 2px 46px)}
+.papers{position:absolute;left:0;right:0;top:0;bottom:58px}
+.controls{position:absolute;left:0;right:0;bottom:0;height:58px;display:flex;gap:8px;align-items:center;padding:6px 8px;background:var(--desk-edge);border-top:3px solid var(--line)}
+.controls .btn{flex:1;min-width:0;padding-block:9px}
+.hint{position:absolute;left:10px;right:10px;top:6px;color:#8f8a6e;font-size:17px;line-height:1;pointer-events:none}
+.veil{position:absolute;inset:0;background:rgba(15,15,12,.92);display:flex;align-items:center;justify-content:center;z-index:60;font-family:var(--font-display);font-size:18px;letter-spacing:.14em;color:var(--amber)}
+
+.btn{font-family:var(--font-display);font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:12px 14px;border:3px solid var(--line);background:var(--amber);color:#1b1a14;cursor:pointer;box-shadow:0 4px 0 var(--line)}
+.btn:active:not(:disabled){transform:translateY(2px);box-shadow:0 2px 0 var(--line)}
+.btn.ok{background:var(--green);color:#f1f0df}
+.btn.no{background:var(--red);color:#f8e9de}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.btn:focus-visible,.tbtn:focus-visible{outline:3px solid #fff;outline-offset:2px}
+
+/* Documents */
+.doc{position:absolute;width:230px;transform:scale(var(--sc,1));transform-origin:0 0;background:var(--paper);color:var(--ink);border:2px solid var(--line);box-shadow:3px 3px 0 rgba(0,0,0,.5);cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;line-height:1}
+.doc.drag{cursor:grabbing;box-shadow:6px 8px 0 rgba(0,0,0,.45)}
+.doc.in{animation:slidein .35s ease-out both}
+.dh{padding:6px 8px;display:flex;flex-direction:column;gap:3px;color:#ece6cb}
+.dh small{font-family:var(--font-display);font-size:8px;letter-spacing:.1em}
+.dh b{font-family:var(--font-display);font-size:13px;letter-spacing:.12em}
+.passport .dh{background:hsl(var(--h) 38% 26%)}
+.permit .dh{background:#5a4a2a}
+.work .dh{background:#2f5a52}
+.db{display:flex;flex-wrap:wrap;gap:6px 10px;padding:8px}
+.photo{width:66px;height:78px;image-rendering:pixelated;border:2px solid var(--ink-soft);background:#9db4bd;flex:none}
+.col{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
+.wide{width:100%;display:flex;flex-direction:column;gap:6px}
+.row small{display:block;font-family:var(--font-display);font-size:8px;letter-spacing:.1em;color:var(--ink-soft);margin-bottom:2px}
+.f{display:inline-block;font-size:21px;line-height:1;padding:1px 3px;margin:-1px -3px;cursor:pointer;overflow-wrap:anywhere}
+.f.mark{outline:2px solid var(--red);background:rgba(179,50,43,.22)}
+.foot{padding:0 8px 8px;font-size:17px;color:var(--ink-soft)}
+.stamp{position:absolute;right:12px;bottom:14px;font-family:var(--font-display);font-weight:700;font-size:17px;letter-spacing:.08em;padding:3px 8px;border:3px solid;transform:rotate(-12deg);pointer-events:none;background:rgba(217,211,182,.55);animation:stampin .2s ease-out both}
+.stamp.ok{color:#2f7a2a;border-color:#2f7a2a}
+.stamp.no{color:#a8271f;border-color:#a8271f}
+@keyframes slidein{from{opacity:0;translate:0 46px}to{opacity:1;translate:0 0}}
+@keyframes stampin{from{opacity:0;transform:rotate(-12deg) scale(2.2)}to{opacity:1;transform:rotate(-12deg) scale(1)}}
+
+/* Toast / citation slip */
+.toast{position:absolute;top:8px;right:8px;max-width:min(270px,72%);z-index:40;background:var(--paper);color:var(--ink);border:3px solid var(--line);box-shadow:4px 4px 0 #000;font-size:20px;line-height:1.05}
+.toast h4{margin:0;padding:5px 8px;font-family:var(--font-display);font-size:10px;letter-spacing:.12em;color:#f3ecd2;background:var(--green)}
+.toast.bad h4{background:var(--red)}
+.toast p{margin:0;padding:8px}
+
+/* Rulebook */
+.rules{min-height:0;overflow:auto;background:var(--panel);border:3px solid var(--line);padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.closeRules{display:none}
+.rules h3{margin:0 0 6px;font-family:var(--font-display);font-size:11px;letter-spacing:.12em;color:var(--amber);font-weight:700}
+.rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.rules li{font-size:19px;line-height:1.05}
+.tag{font-family:var(--font-display);font-size:8px;letter-spacing:.08em;background:var(--amber);color:#1b1a14;padding:2px 4px;margin-left:6px;vertical-align:middle}
+.cities{display:flex;flex-direction:column;gap:3px;font-size:17px;line-height:1}
+.cities b{color:#e8e2c6;font-weight:400}
+.cities span{color:#a9a487}
+.tip{font-size:16px;line-height:1;color:#a9a487}
+@media (max-width:860px){
+  .rules{display:none;position:fixed;inset:0;z-index:70;border-width:0;padding-block:max(14px,env(safe-area-inset-top,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .rules.open{display:flex}
+  .closeRules{display:inline-block;align-self:flex-start}
+}
+
+/* Overlay cards */
+.overlay{position:fixed;inset:0;background:rgba(10,10,8,.86);display:none;align-items:center;justify-content:center;padding:16px;z-index:80;overflow:auto}
+.overlay.show{display:flex}
+.card{background:var(--paper);color:var(--ink);max-width:580px;width:100%;margin:auto;border:3px solid var(--line);box-shadow:6px 6px 0 #000;padding:18px 20px;display:flex;flex-direction:column;gap:12px;font-size:22px;line-height:1.1}
+.card h2{margin:0;font-family:var(--font-display);font-size:19px;letter-spacing:.08em;line-height:1.3}
+.card h3{margin:0;font-family:var(--font-display);font-size:11px;letter-spacing:.12em;color:var(--ink-soft)}
+.card p{margin:0}
+.card ul,.card ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:5px}
+.card .date{font-family:var(--font-display);font-size:10px;letter-spacing:.12em;color:var(--ink-soft)}
+.card .btn{align-self:flex-start}
+.card .note{background:var(--paper-dark);padding:8px 10px;border-left:5px solid var(--red)}
+table.sum{border-collapse:collapse;width:100%}
+table.sum td{padding:3px 0;border-bottom:1px dashed var(--ink-soft)}
+table.sum td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.exp{display:flex;align-items:center;gap:10px;cursor:pointer}
+.exp input{width:22px;height:22px;accent-color:#4a6b3a}
+.relax{display:flex;align-items:center;gap:8px;font-size:20px;cursor:pointer}
+.relax input{width:20px;height:20px;accent-color:#4a6b3a}
+
+@media (max-width:520px){
+  .hud{padding:4px 8px;gap:2px 10px}
+  .brand{display:none}
+  .stat span{font-size:18px}
+  .stat small{font-size:7px}
+  .tools{margin-left:auto}
+  .speech{height:72px;font-size:19px}
+  .btn{font-size:11px;padding:9px 6px}
+}
+@media (prefers-reduced-motion:reduce){
+  .doc.in,.stamp{animation:none}
+}
+</style>
+
+<div id="app">
+  <div class="hud">
+    <div class="brand">CHECKPOINT MARLOW</div>
+    <div class="stat"><small>DAY</small><span id="hDay">1</span></div>
+    <div class="stat"><small>DATE</small><span id="hDate">02 NOV 2026</span></div>
+    <div class="stat"><small>CLOCK</small><span id="hClock">08:00</span></div>
+    <div class="stat"><small>WAITING</small><span id="hWait">0</span></div>
+    <div class="stat"><small>CREDITS</small><span id="hMoney">0</span></div>
+    <div class="stat"><small>CITATIONS</small><span id="hCite">0/2</span></div>
+    <div class="tools">
+      <button class="tbtn" id="bRules" type="button">Rules</button>
+      <button class="tbtn" id="bPause" type="button">Pause</button>
+      <button class="tbtn" id="bSound" type="button">Sound: on</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="left">
+      <div class="scene"><canvas id="scene" width="320" height="150"></canvas></div>
+      <div class="speech" id="speech" aria-live="polite"><b>BOOTH 3</b><span id="speechText">Welcome to the Marlow gate.</span></div>
+      <div class="desk" id="desk">
+        <div class="papers" id="papers"></div>
+        <div class="hint" id="hint">Press CALL NEXT to bring the first visitor to your window.</div>
+        <div class="controls">
+          <button class="btn" id="bCall" type="button">Call next</button>
+          <button class="btn no" id="bDeny" type="button" disabled>Deny</button>
+          <button class="btn ok" id="bApprove" type="button" disabled>Approve</button>
+        </div>
+        <div class="veil" id="veil" hidden>PAUSED</div>
+      </div>
+    </div>
+    <aside class="rules" id="rulebook">
+      <button class="tbtn closeRules" id="bCloseRules" type="button">Close rulebook</button>
+      <div>
+        <h3>TODAY'S DATE</h3>
+        <p id="rDate" style="font-size:22px">02 NOV 2026</p>
+        <p class="tip">A paper is good through the date printed on it.</p>
+      </div>
+      <div><h3>RULES OF THE GATE</h3><ul id="rList"></ul></div>
+      <div><h3>CITIES OF ISSUE</h3><div class="cities" id="rCities"></div></div>
+      <p class="tip">Tip: drag papers side by side. Click a detail to circle it. Keys: N call, A approve, D deny.</p>
+    </aside>
+  </div>
+</div>
+
+<div class="overlay show" id="overlay"><div class="card" id="card"></div></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- helpers ---------- */
+var $=function(s){return document.querySelector(s)};
+var rnd=function(a,b){return Math.floor(Math.random()*(b-a+1))+a};
+var pick=function(a){return a[Math.floor(Math.random()*a.length)]};
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+/* ---------- world data ---------- */
+var COUNTRIES={
+  Kestria:{code:'KE',hue:205,cities:['Ardell','Port Kes','Hollin']},
+  Doraland:{code:'DO',hue:28,cities:['Doran','Westmere','Calder']},
+  Veluna:{code:'VE',hue:140,cities:['Velun','Sunhaven','Maris']},
+  Orlith:{code:'OR',hue:285,cities:['Orlin','Greywater','Tessa']},
+  Brindisa:{code:'BR',hue:350,cities:['Brindis','Lakeshore','Pavo']}
+};
+var CNAMES=Object.keys(COUNTRIES);
+var FIRST=['Mira','Tomas','Lena','Oskar','Priya','Jonas','Nadia','Felix','Aiko','Rafael','Sana','Luca','Ines','Dario','Hana','Bruno','Zara','Milo','Elena','Kofi'];
+var LAST=['Marsh','Voss','Ketter','Lindqvist','Okoro','Brandt','Silva','Tanaka','Novak','Haddad','Reyes','Petrov','Moreau','Singh','Alder','Costa'];
+var EMPLOYERS=['Harbor Bakery','Marlow Ferry Co.','Greenfield Farm','City Library','Lantern Workshop','Sunrise Market'];
+var MON=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+var BASE=new Date(2026,10,2);
+var PAY=4, FREE_WARN=2, FOOD=12, HEAT=8, LAST_DAY=6;
+
+function dayDate(day){return new Date(BASE.getFullYear(),BASE.getMonth(),BASE.getDate()+day-1)}
+function addDays(d,n){return new Date(d.getFullYear(),d.getMonth(),d.getDate()+n)}
+function fmt(d){return String(d.getDate()).padStart(2,'0')+' '+MON[d.getMonth()]+' '+d.getFullYear()}
+function closedFor(day){return day>=6?['Doraland']:(day>=4?['Veluna']:[])}
+
+var RULES=[
+  {min:1,text:'The passport must not be expired.'},
+  {min:1,text:'The name must be spelled the same on every paper.'},
+  {min:2,text:'The entry permit must not be expired.'},
+  {min:2,text:'The ID number must match on the passport and the permit.'},
+  {min:3,text:'Visitors who come to WORK need a Work Pass with the same name.'},
+  {min:5,text:'The passport photo must match the visitor at your window.'},
+  {min:5,text:'The city of issue must belong to the country (see list).'}
+];
+var NEWS=[
+  'Welcome to the Marlow gate, Inspector. Check every visitor\'s papers before you open the gate.',
+  'Stricter checks start today. Permits can expire too, and ID numbers must match.',
+  'Workers are arriving for the harvest. Anyone who comes to work needs a Work Pass.',
+  'Festival week in Veluna. The gate is closed to Velunan visitors until further notice.',
+  'The new scanner team is here. Photos must look like the visitor, and the city must belong to the country.',
+  'Veluna reopens. Doraland closes for bridge repairs. Every check you have learned still applies.'
+];
+
+/* ---------- looks (pixel people) ---------- */
+var SKINS=['#f1c9a0','#d9a273','#b57b4f','#8a5a3a','#5f3d28'];
+var HAIRS=['#2a1c14','#5a3a22','#a3622a','#d7b45a','#8d8d8d','#a02a2a'];
+var STYLES=['short','long','cap','curly','bald'];
+var SHIRTS=['#3d5a80','#7a3b3b','#4b6b3a','#6b4f7a','#a07a2a','#2f6f73','#6a6a6a'];
+function randomLook(){return {skin:pick(SKINS),hair:pick(HAIRS),style:pick(STYLES),glasses:Math.random()<.3,shirt:pick(SHIRTS)}}
+function wrongLook(l){
+  var m={skin:l.skin,hair:l.hair,style:l.style,glasses:l.glasses,shirt:l.shirt};
+  shuffle(['skin','hair','style']).slice(0,2).forEach(function(k){
+    var pool=k==='skin'?SKINS:(k==='hair'?HAIRS:STYLES);
+    m[k]=pick(pool.filter(function(v){return v!==l[k]}));
+  });
+  return m;
+}
+function sameLook(a,b){return a.skin===b.skin&&a.style===b.style&&a.glasses===b.glasses&&(a.style==='bald'||a.hair===b.hair)}
+
+function shade(hex,amt){
+  var n=parseInt(hex.slice(1),16),r=(n>>16)+amt,g=((n>>8)&255)+amt,b=(n&255)+amt;
+  r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));
+  return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);
+}
+function px(c,x,y,w,h,col){c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),w,h)}
+function drawPerson(c,L,cx,top){
+  var sk=L.skin,dk=shade(sk,-28);
+  px(c,cx-27,top+27,54,64,L.shirt);
+  px(c,cx-27,top+27,54,3,shade(L.shirt,-28));
+  px(c,cx-8,top+25,16,5,shade(L.shirt,28));
+  px(c,cx-5,top+21,10,6,dk);
+  if(L.style==='long') px(c,cx-14,top-2,28,38,L.hair);
+  px(c,cx-11,top,22,24,sk);
+  px(c,cx-13,top+10,2,6,sk);px(c,cx+11,top+10,2,6,sk);
+  if(L.style==='short'){px(c,cx-12,top-3,24,8,L.hair);px(c,cx-12,top+3,3,8,L.hair);px(c,cx+9,top+3,3,8,L.hair)}
+  else if(L.style==='long'){px(c,cx-12,top-3,24,7,L.hair)}
+  else if(L.style==='cap'){px(c,cx-13,top-5,26,9,L.hair);px(c,cx-13,top+3,31,3,shade(L.hair,-22))}
+  else if(L.style==='curly'){px(c,cx-13,top-5,26,10,L.hair);px(c,cx-15,top-1,4,12,L.hair);px(c,cx+11,top-1,4,12,L.hair);px(c,cx-9,top-7,18,3,L.hair)}
+  else {px(c,cx-3,top+2,6,1,shade(sk,28))}
+  px(c,cx-6,top+11,3,3,'#1b1a16');px(c,cx+3,top+11,3,3,'#1b1a16');
+  px(c,cx-3,top+18,6,1,'#5a2a22');
+  if(L.glasses){
+    var g='#22211b';
+    [[cx-9,top+9],[cx+1,top+9]].forEach(function(p){
+      px(c,p[0],p[1],8,1,g);px(c,p[0],p[1]+7,8,1,g);px(c,p[0],p[1],1,8,g);px(c,p[0]+7,p[1],1,8,g);
+    });
+    px(c,cx-1,top+11,2,1,g);
+  }
+}
+function drawPortrait(cv,L){
+  var c=cv.getContext('2d');
+  px(c,0,0,44,52,'#9db4bd');px(c,0,36,44,16,'#8aa1aa');
+  drawPerson(c,L,22,13);
+}
+
+/* ---------- applicants ---------- */
+function mutate(w){
+  for(var t=0;t<12;t++){
+    var i=rnd(1,w.length-2),s,m=rnd(0,2);
+    if(m===0&&w[i]!==w[i+1]) s=w.slice(0,i)+w[i+1]+w[i]+w.slice(i+2);
+    else if(m===1) s=w.slice(0,i)+w[i]+w.slice(i);
+    else s=w.slice(0,i)+w.slice(i+1);
+    if(s!==w) return s;
+  }
+  return w+'e';
+}
+function mutateName(first,last){return Math.random()<.5?[mutate(first),last]:[first,mutate(last)]}
+function mutateId(id){
+  var p=id.split('-'),d=p[1].split(''),i=rnd(0,3),n;
+  do{n=String(rnd(0,9))}while(n===d[i]);
+  d[i]=n;return p[0]+'-'+d.join('');
+}
+function applyFault(A,f,today){
+  if(f==='passExp') A.passExp=addDays(today,-rnd(3,400));
+  else if(f==='name'){var m=mutateName(A.first,A.last);A.permName=m[0]+' '+m[1]}
+  else if(f==='permExp') A.permExp=addDays(today,-rnd(1,40));
+  else if(f==='id') A.permId=mutateId(A.id);
+  else if(f==='noWork') A.workPass=false;
+  else if(f==='workName'){var w=mutateName(A.first,A.last);A.workName=w[0]+' '+w[1]}
+  else if(f==='photo') A.photo=wrongLook(A.look);
+  else if(f==='city'){
+    var others=CNAMES.filter(function(c){return c!==A.country});
+    A.city=pick(COUNTRIES[pick(others)].cities);
+  }
+}
+function genApplicant(day){
+  var closed=closedFor(day),today=dayDate(day);
+  var open=CNAMES.filter(function(c){return closed.indexOf(c)<0});
+  var country=(closed.length&&Math.random()<.18)?pick(closed):pick(open);
+  var cd=COUNTRIES[country],look=randomLook();
+  var first=pick(FIRST),last=pick(LAST);
+  var A={
+    country:country,look:look,photo:look,first:first,last:last,name:first+' '+last,
+    id:cd.code+'-'+rnd(1000,9999),city:pick(cd.cities),
+    passExp:addDays(today,rnd(40,900)),permExp:addDays(today,rnd(2,90)),
+    purpose:pick(day>=3?['Visit','Study','Family','Work']:['Visit','Study','Family']),
+    employer:pick(EMPLOYERS)
+  };
+  A.permName=A.name;A.permId=A.id;A.workName=A.name;
+  A.workPass=(A.purpose==='Work'&&day>=3);
+  if(closed.indexOf(country)<0&&Math.random()<.5){
+    var faults=['passExp','name'];
+    if(day>=2) faults.push('permExp','id');
+    if(day>=3&&A.purpose==='Work') faults.push('noWork','workName');
+    if(day>=5) faults.push('photo','city');
+    var n=(day>=4&&Math.random()<.15)?2:1;
+    shuffle(faults).slice(0,n).forEach(function(f){applyFault(A,f,today)});
+  }
+  return A;
+}
+function check(A,day){
+  var v=[],today=dayDate(day),closed=closedFor(day);
+  if(A.passExp<today) v.push('The passport expired on '+fmt(A.passExp)+'.');
+  if(A.name!==A.permName) v.push('The name on the passport ('+A.name+') does not match the permit ('+A.permName+').');
+  if(day>=2){
+    if(A.permExp<today) v.push('The entry permit expired on '+fmt(A.permExp)+'.');
+    if(A.id!==A.permId) v.push('The ID numbers do not match ('+A.id+' and '+A.permId+').');
+  }
+  if(day>=3&&A.purpose==='Work'){
+    if(!A.workPass) v.push('The visitor is here to work but has no Work Pass.');
+    else if(A.workName!==A.name) v.push('The Work Pass name ('+A.workName+') does not match the passport.');
+  }
+  if(closed.indexOf(A.country)>=0) v.push('Visitors from '+A.country+' are not allowed in today.');
+  if(day>=5){
+    if(!sameLook(A.look,A.photo)) v.push('The passport photo does not match the visitor.');
+    if(COUNTRIES[A.country].cities.indexOf(A.city)<0) v.push(A.city+' is not a city in '+A.country+'.');
+  }
+  return v;
+}
+
+/* ---------- state ---------- */
+var G=null,D=null,paused=false,muted=false,relaxed=false,running=false;
+var anim={phase:'idle',t0:0};
+var zTop=10,toastTimer=null;
+var els={
+  papers:$('#papers'),desk:$('#desk'),hint:$('#hint'),veil:$('#veil'),
+  call:$('#bCall'),deny:$('#bDeny'),approve:$('#bApprove'),
+  speech:$('#speechText'),overlay:$('#overlay'),card:$('#card')
+};
+function daySecs(){return relaxed?600:300}
+
+/* ---------- sound ---------- */
+var actx=null;
+function beep(freq,dur,type,vol){
+  if(muted) return;
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    var o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'square';o.frequency.value=freq;g.gain.value=vol||.05;
+    o.connect(g);g.connect(actx.destination);o.start();
+    g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+dur);o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+
+/* ---------- scene ---------- */
+var sc=$('#scene'),sctx=sc.getContext('2d');
+sctx.imageSmoothingEnabled=false;
+var BUILD=[[30,40,26,50],[60,30,22,60],[92,46,30,44],[200,36,28,54],[232,26,24,64],[262,44,34,46]];
+function drawScene(now){
+  var c=sctx;
+  px(c,0,0,320,150,'#7f8c80');px(c,0,0,320,34,'#6f7d72');
+  BUILD.forEach(function(b){
+    px(c,b[0],b[1],b[2],b[3],'#4d5449');
+    for(var y=b[1]+6;y<b[1]+b[3]-8;y+=10)for(var x=b[0]+4;x<b[0]+b[2]-4;x+=8)px(c,x,y,3,4,'#6b7364');
+  });
+  px(c,0,88,320,62,'#5b5c50');px(c,0,88,320,2,'#44453b');
+  for(var x=0;x<320;x+=8)px(c,x,80,2,12,'#3a3b32');
+  px(c,0,82,320,2,'#3a3b32');
+  var waiting=D?Math.max(0,D.queue.length-D.idx):0;
+  for(var i=0;i<Math.min(7,waiting);i++){
+    var qx=44+i*16,sh=i%2?'#2b2c26':'#33342d';
+    px(c,qx,62,9,10,sh);px(c,qx-3,72,15,22,sh);
+  }
+  if(anim.phase!=='idle'&&D&&D.cur){
+    var t=now-anim.t0,off=0,moving=false;
+    if(anim.phase==='in'){var p=Math.min(1,t/850);off=-150*(1-(1-p)*(1-p));moving=p<1}
+    else if(anim.phase==='out'){var q=Math.min(1,t/750);off=150*q*q;moving=q<1}
+    var bob=moving?Math.abs(Math.sin(now/90))*3:0;
+    drawPerson(c,D.cur.look,160+off,46-bob);
+  }
+  px(c,0,0,320,8,'#2b2a22');
+  px(c,0,0,26,150,'#38372c');px(c,294,0,26,150,'#38372c');
+  px(c,26,8,3,102,'#23221b');px(c,291,8,3,102,'#23221b');
+  px(c,302,14,2,40,'#1d1d17');px(c,304,16,12,8,'#a8362e');px(c,304,24,12,5,'#d9d3b6');
+  px(c,6,20,14,22,'#d9d3b6');px(c,8,24,10,2,'#5b5845');px(c,8,29,10,2,'#5b5845');px(c,8,34,6,2,'#5b5845');
+  px(c,0,112,320,38,'#2a2921');px(c,0,108,320,6,'#4a483a');px(c,0,114,320,2,'#171712');
+  px(c,250,100,10,8,'#bfb894');px(c,252,98,6,2,'#8a8567');
+}
+
+/* ---------- HUD ---------- */
+function updateHUD(){
+  $('#hDay').textContent=G?G.day:1;
+  var d=dayDate(G?G.day:1);
+  $('#hDate').textContent=fmt(d);$('#rDate').textContent=fmt(d);
+  $('#hMoney').textContent=G?G.money:0;
+  $('#hCite').textContent=(D?D.cites:0)+'/'+FREE_WARN;
+  $('#hWait').textContent=D?(D.queue.length-D.idx+(D.cur?1:0)):0;
+}
+function updateClock(){
+  if(!D) return;
+  var mins=480+Math.floor(D.elapsed/daySecs()*600);
+  var h=Math.floor(mins/60),m=mins%60;
+  var el=$('#hClock');
+  el.textContent=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  el.className=(daySecs()-D.elapsed<30)?'warn':'';
+}
+function setButtons(){
+  var live=running&&D&&!D.over&&!paused;
+  var left=D?D.queue.length-D.idx:0;
+  els.call.textContent=(D&&left===0&&!D.cur)?'End shift':'Call next';
+  els.call.disabled=!(live&&!D.cur&&!D.busy);
+  var ready=live&&D.cur&&D.docsOut&&!D.busy;
+  els.deny.disabled=!ready;els.approve.disabled=!ready;
+}
+function say(txt,who){
+  $('#speech').firstChild.textContent=who||'VISITOR';
+  els.speech.textContent=txt;
+}
+function setHint(txt){
+  els.hint.textContent=txt||'';els.hint.hidden=!txt;
+}
+
+/* ---------- toast ---------- */
+function clearToast(){
+  var t=els.desk.querySelector('.toast');if(t)t.remove();
+  clearTimeout(toastTimer);
+}
+function toast(title,body,bad){
+  clearToast();
+  var t=document.createElement('div');t.className='toast'+(bad?' bad':'');
+  t.innerHTML='<h4>'+esc(title)+'</h4><p>'+esc(body)+'</p>';
+  els.desk.appendChild(t);
+  toastTimer=setTimeout(function(){t.remove()},9000);
+}
+
+/* ---------- documents ---------- */
+function fld(label,val,k){return '<div class="row"><small>'+label+'</small><span class="f" data-k="'+k+'">'+esc(val)+'</span></div>'}
+function makeDoc(cls,html){
+  var el=document.createElement('div');el.className='doc '+cls+' in';el.innerHTML=html;return el;
+}
+function makePassport(A){
+  var el=makeDoc('passport','<div class="dh"><small>REPUBLIC OF <span class="f" data-k="country">'+esc(A.country.toUpperCase())+'</span></small><b>PASSPORT</b></div>'+
+    '<div class="db"><canvas class="photo" width="44" height="52"></canvas>'+
+    '<div class="col">'+fld('ID NO.',A.id,'id')+fld('EXPIRES',fmt(A.passExp),'exp')+'</div>'+
+    '<div class="wide">'+fld('NAME',A.name,'name')+fld('CITY OF ISSUE',A.city,'city')+'</div></div>');
+  el.style.setProperty('--h',COUNTRIES[A.country].hue);
+  drawPortrait(el.querySelector('canvas'),A.photo);
+  return el;
+}
+function makePermit(A){
+  return makeDoc('permit','<div class="dh"><small>REPUBLIC OF MARLOW</small><b>ENTRY PERMIT</b></div>'+
+    '<div class="db"><div class="wide">'+fld('NAME',A.permName,'name')+fld('ID NO.',A.permId,'id')+fld('PURPOSE OF VISIT',A.purpose,'purpose')+fld('VALID UNTIL',fmt(A.permExp),'exp')+'</div></div>');
+}
+function makeWork(A){
+  return makeDoc('work','<div class="dh"><small>REPUBLIC OF MARLOW</small><b>WORK PASS</b></div>'+
+    '<div class="db"><div class="wide">'+fld('NAME',A.workName,'name')+fld('EMPLOYER',A.employer,'employer')+'</div></div>'+
+    '<div class="foot">Valid for the length of the permit.</div>');
+}
+function enableDrag(el){
+  var sx=0,sy=0,ox=0,oy=0,moved=false,active=false,down=null;
+  el.addEventListener('pointerdown',function(e){
+    if(paused) return;
+    active=true;moved=false;down=e.target;sx=e.clientX;sy=e.clientY;ox=el.offsetLeft;oy=el.offsetTop;
+    try{el.setPointerCapture(e.pointerId)}catch(err){}
+    el.style.zIndex=++zTop;el.classList.add('drag');
+  });
+  el.addEventListener('pointermove',function(e){
+    if(!active) return;
+    var dx=e.clientX-sx,dy=e.clientY-sy;
+    if(Math.abs(dx)+Math.abs(dy)>4) moved=true;
+    if(!moved) return;
+    var pw=els.papers.clientWidth,ph=els.papers.clientHeight;
+    var s=parseFloat(els.papers.style.getPropertyValue('--sc'))||1;
+    el.style.left=Math.max(-40,Math.min(pw-el.offsetWidth*s+40,ox+dx))+'px';
+    el.style.top=Math.max(-10,Math.min(ph-el.offsetHeight*s+30,oy+dy))+'px';
+  });
+  el.addEventListener('pointerup',function(){
+    if(!active) return;
+    active=false;el.classList.remove('drag');
+    if(!moved&&down){var f=down.closest?down.closest('.f'):null;if(f)f.classList.toggle('mark')}
+  });
+  el.addEventListener('pointercancel',function(){active=false;el.classList.remove('drag')});
+}
+function layoutDocs(docs){
+  var W=els.papers.clientWidth,H=els.papers.clientHeight,n=docs.length;
+  var s=1,step=0,stack=false;
+  for(var pass=0;pass<2;pass++){
+    step=n>1?Math.min(238*s,(W-230*s-16)/(n-1)):0;
+    if(n>1&&step<20) step=20;
+    stack=n>1&&step<100*s;
+    var need=222+(stack?(n-1)*34:0)+16;
+    s=Math.max(.55,Math.min(1,H/need));
+  }
+  els.papers.style.setProperty('--sc',s);
+  docs.forEach(function(d,i){
+    d.style.left=(8+i*step)+'px';
+    d.style.top=(8+(stack?i*34*s:0))+'px';
+    d.style.zIndex=++zTop;
+    d.style.animationDelay=(i*0.12)+'s';
+  });
+}
+function clearDocs(){els.papers.innerHTML=''}
+
+/* ---------- shift flow ---------- */
+function startShift(){
+  var N=[6,7,8,9,10,12][G.day-1];
+  D={id:Date.now(),queue:[],idx:0,cur:null,docsOut:false,busy:false,over:false,ended:false,
+     elapsed:0,checked:0,correct:0,wrong:0,cites:0,earned:0,penalty:0};
+  for(var i=0;i<N;i++) D.queue.push(genApplicant(G.day));
+  running=true;paused=false;els.veil.hidden=true;
+  anim={phase:'idle',t0:0};
+  clearDocs();clearToast();renderRules();updateHUD();updateClock();setButtons();
+  setHint('Press CALL NEXT to bring the first visitor to your window.');
+  say('Booth 3 is open. The line is forming.','INSPECTOR');
+}
+function callNext(){
+  if(!D||D.over||paused||D.cur||D.busy||!running) return;
+  if(D.idx>=D.queue.length){endDay(false);return}
+  clearToast();setHint('');
+  var A=D.queue[D.idx++];D.cur=A;D.docsOut=false;
+  anim={phase:'in',t0:performance.now()};
+  say('...','VISITOR');setButtons();updateHUD();
+  var tk=D;
+  setTimeout(function(){
+    if(D!==tk||D.cur!==A||D.over) return;
+    anim={phase:'present',t0:performance.now()};
+    deliver(A);
+  },900);
+}
+function deliver(A){
+  var docs=[makePassport(A),makePermit(A)];
+  if(G.day>=3&&A.purpose==='Work'&&A.workPass) docs.push(makeWork(A));
+  docs.forEach(function(d){els.papers.appendChild(d);enableDrag(d)});
+  layoutDocs(docs);
+  var why={Visit:'I am visiting the lighthouse and the market.',Study:'I am starting classes at Marlow Academy.',Family:'I am here to see my cousins.',Work:'I will be working at '+A.employer+'.'}[A.purpose];
+  var intro=pick(['Good morning! Here are my papers.','Hello, Inspector. These are my papers.','Hi there. Everything is right here.']);
+  var extra=(A.purpose==='Work'&&!A.workPass&&G.day>=3)?' That is everything I have.':'';
+  say(intro+' '+why+extra,'VISITOR');
+  D.docsOut=true;beep(300,.06,'square',.03);setButtons();
+}
+function addStamp(approve){
+  var pass=els.papers.querySelector('.passport');
+  if(!pass) return;
+  var s=document.createElement('div');s.className='stamp '+(approve?'ok':'no');
+  s.textContent=approve?'APPROVED':'DENIED';
+  s.style.right=(8+rnd(0,26))+'px';s.style.bottom=(10+rnd(0,40))+'px';
+  pass.appendChild(s);pass.style.zIndex=++zTop;
+}
+function decide(approve){
+  if(!D||!D.cur||!D.docsOut||D.busy||paused||D.over||!running) return;
+  D.busy=true;setButtons();
+  var A=D.cur,v=check(A,G.day),shouldDeny=v.length>0,correct=(approve!==shouldDeny);
+  addStamp(approve);beep(110,.14,'sawtooth',.08);
+  D.checked++;
+  if(correct){
+    D.correct++;D.earned+=PAY;G.money+=PAY;
+    toast(shouldDeny?'GOOD CATCH  +'+PAY+' cr':'ALL CLEAR  +'+PAY+' cr',shouldDeny?v.join(' '):'Every paper was in order.',false);
+    setTimeout(function(){beep(660,.1,'square',.04)},150);
+  }else{
+    D.wrong++;D.cites++;
+    var msg=approve?'You let in a visitor with a problem. '+v[0]:'That visitor\'s papers were all in order. They should have been approved.';
+    var tail;
+    if(D.cites<=FREE_WARN) tail=' Warning '+D.cites+' of '+FREE_WARN+'. No fine yet.';
+    else{var lost=Math.min(G.money,PAY);G.money-=lost;D.penalty+=lost;tail=' Fine: -'+PAY+' cr.'}
+    toast('CITATION',msg+tail,true);
+    setTimeout(function(){beep(100,.4,'square',.07)},150);
+  }
+  say(approve?'Thank you! Have a nice stay.':'Oh. Okay. Thank you anyway.','VISITOR');
+  updateHUD();
+  var tk=D;
+  setTimeout(function(){if(D!==tk) return;anim={phase:'out',t0:performance.now()}},650);
+  setTimeout(function(){
+    if(D!==tk) return;
+    clearDocs();anim={phase:'idle',t0:0};D.cur=null;D.docsOut=false;D.busy=false;
+    updateHUD();setButtons();
+    if(D.idx>=D.queue.length&&!D.over){setHint('That was the last visitor. Press END SHIFT.')}
+    else if(!D.over){setHint('Press CALL NEXT for the next visitor.')}
+    say('Next in line, please.','INSPECTOR');
+  },1500);
+}
+function timeUp(){
+  if(!D||D.over) return;
+  D.over=true;running=false;
+  D.cur=null;D.busy=false;clearDocs();anim={phase:'idle',t0:0};
+  say('The gate is closed for today.','INSPECTOR');setButtons();setHint('');
+  var tk=D;setTimeout(function(){if(D===tk)endDay(true)},900);
+}
+function endDay(timeout){
+  if(!D||D.ended) return;
+  D.ended=true;D.over=true;running=false;
+  clearDocs();anim={phase:'idle',t0:0};setButtons();clearToast();
+  G.totalChecked+=D.checked;G.totalCorrect+=D.correct;
+  var left=D.queue.length-D.idx;
+  var B=G.money,rem=B,foodOn=rem>=FOOD;if(foodOn)rem-=FOOD;var heatOn=rem>=HEAT;
+  showCard(
+    '<h2>Day '+G.day+' complete</h2>'+
+    (timeout&&left>0?'<p class="note">The gate closed with '+left+' visitor'+(left===1?'':'s')+' still waiting. They will come back tomorrow.</p>':'')+
+    '<table class="sum"><tr><td>Visitors checked</td><td>'+D.checked+'</td></tr>'+
+    '<tr><td>Correct decisions</td><td>'+D.correct+'</td></tr>'+
+    '<tr><td>Mistakes</td><td>'+D.wrong+'</td></tr>'+
+    '<tr><td>Earned</td><td>+'+D.earned+' cr</td></tr>'+
+    '<tr><td>Fines</td><td>-'+D.penalty+' cr</td></tr>'+
+    '<tr><td><b>Your savings</b></td><td><b>'+B+' cr</b></td></tr></table>'+
+    '<h3>Spend on your family tonight</h3>'+
+    '<label class="exp"><input type="checkbox" id="xFood" '+(foodOn?'checked':'')+(B<FOOD?' disabled':'')+'> Food ('+FOOD+' cr)</label>'+
+    '<label class="exp"><input type="checkbox" id="xHeat" '+(heatOn?'checked':'')+(B<HEAT?' disabled':'')+'> Heat ('+HEAT+' cr)</label>'+
+    '<p id="xInfo"></p>'+
+    '<button class="btn" type="button" data-act="pay">Pay and go home</button>'
+  );
+  var f=$('#xFood'),h=$('#xHeat'),info=$('#xInfo');
+  function cost(){return (f.checked?FOOD:0)+(h.checked?HEAT:0)}
+  function refresh(){info.textContent='Left after paying: '+(B-cost())+' cr'}
+  [f,h].forEach(function(x){x.addEventListener('change',function(){if(cost()>B)x.checked=false;refresh()})});
+  refresh();
+}
+function payAndNext(){
+  var f=$('#xFood').checked,h=$('#xHeat').checked;
+  G.money-=(f?FOOD:0)+(h?HEAT:0);
+  G.notes=[];
+  if(!f){G.hardship++;G.notes.push('Your family went without food last night.')}
+  if(!h){G.hardship++;G.notes.push('The apartment was cold last night.')}
+  if(G.hardship>=3){gameOver();return}
+  if(G.day>=LAST_DAY){finalCard();return}
+  G.day++;updateHUD();bulletin();
+}
+
+/* ---------- cards ---------- */
+function showCard(html){els.card.innerHTML=html;els.overlay.classList.add('show');els.card.scrollTop=0}
+function hideCard(){els.overlay.classList.remove('show')}
+function titleCard(){
+  showCard(
+    '<h2>Checkpoint Marlow</h2>'+
+    '<p>You are the new border inspector at the Marlow gate. Visitors hand you their papers. Your job is to decide who may enter.</p>'+
+    '<ol><li>Press <b>CALL NEXT</b> to bring up a visitor.</li>'+
+    '<li>Read their papers. Drag them to compare. Click a detail to circle it.</li>'+
+    '<li>Check the <b>rulebook</b>. The rules grow every day.</li>'+
+    '<li>Press <b>APPROVE</b> or <b>DENY</b>. A correct choice earns '+PAY+' credits. A mistake earns a citation.</li></ol>'+
+    '<p>The first '+FREE_WARN+' citations each day are only warnings. After that you pay a fine. On a small screen, tap <b>Rules</b> to open the rulebook.</p>'+
+    '<label class="relax"><input type="checkbox" id="xRelax"> Relaxed clock (twice as much time)</label>'+
+    '<button class="btn" type="button" data-act="start">Start day 1</button>'
+  );
+}
+function bulletin(){
+  var day=G.day,items=[];
+  RULES.forEach(function(r){if(r.min===day)items.push(r.text)});
+  var cl=closedFor(day);
+  if(day===4||day===6) items.push('Closed to visitors from: '+cl.join(', ')+'.');
+  var notes=(G.notes||[]).map(function(n){return '<p class="note">'+esc(n)+'</p>'}).join('');
+  showCard(
+    '<h2>The Marlow Bulletin</h2>'+
+    '<p class="date">DAY '+day+'  |  '+fmt(dayDate(day))+'</p>'+
+    '<p>'+esc(NEWS[day-1])+'</p>'+
+    notes+
+    '<h3>'+(day===1?'RULES FOR TODAY':'NEW TODAY')+'</h3>'+
+    '<ul>'+(day===1?RULES.filter(function(r){return r.min===1}).map(function(r){return r.text}):items).map(function(t){return '<li>'+esc(t)+'</li>'}).join('')+'</ul>'+
+    '<p>All rules are in your rulebook. The gate is open from 08:00 to 18:00.</p>'+
+    '<button class="btn" type="button" data-act="begin">Begin shift</button>'
+  );
+}
+function gameOver(){
+  showCard(
+    '<h2>Shift ended early</h2>'+
+    '<p>Your family went without too many times, and you were moved to a desk job at the Marlow library. It happens to new inspectors. Next time, keep some credits for food and heat before anything else.</p>'+
+    '<p>You reached day '+G.day+' and made '+G.totalCorrect+' correct decisions.</p>'+
+    '<button class="btn" type="button" data-act="again">Try again</button>'
+  );
+}
+function finalCard(){
+  var pct=G.totalChecked?Math.round(G.totalCorrect/G.totalChecked*100):0;
+  var rank=pct>=90?'Chief Inspector':(pct>=75?'Senior Inspector':(pct>=60?'Inspector':'Trainee'));
+  showCard(
+    '<h2>Training complete</h2>'+
+    '<p class="date">'+LAST_DAY+' DAYS AT THE MARLOW GATE</p>'+
+    '<table class="sum"><tr><td>Visitors checked</td><td>'+G.totalChecked+'</td></tr>'+
+    '<tr><td>Correct decisions</td><td>'+G.totalCorrect+'</td></tr>'+
+    '<tr><td>Accuracy</td><td>'+pct+'%</td></tr>'+
+    '<tr><td>Savings</td><td>'+G.money+' cr</td></tr>'+
+    '<tr><td><b>Your rank</b></td><td><b>'+rank+'</b></td></tr></table>'+
+    '<p>Careful reading and checking every detail made the difference. Well done, Inspector.</p>'+
+    '<button class="btn" type="button" data-act="again">Play again</button>'
+  );
+}
+function newGame(){
+  G={day:1,money:0,hardship:0,totalChecked:0,totalCorrect:0,notes:[]};
+  D=null;running=false;anim={phase:'idle',t0:0};
+  clearDocs();clearToast();updateHUD();$('#hClock').textContent='08:00';setButtons();
+  renderRules();
+  setHint('Press CALL NEXT to bring the first visitor to your window.');
+  say('Welcome to the Marlow gate.','INSPECTOR');
+}
+els.card.addEventListener('click',function(e){
+  var a=e.target.closest('[data-act]');if(!a) return;
+  var act=a.getAttribute('data-act');
+  if(act==='start'){var r=$('#xRelax');relaxed=!!(r&&r.checked);newGame();bulletin()}
+  else if(act==='begin'){hideCard();startShift()}
+  else if(act==='pay'){payAndNext()}
+  else if(act==='again'){newGame();titleCard()}
+});
+
+/* ---------- rulebook ---------- */
+function renderRules(){
+  var day=G?G.day:1,html='';
+  RULES.forEach(function(r){
+    if(r.min<=day) html+='<li>'+esc(r.text)+(r.min===day&&day>1?'<span class="tag">NEW</span>':'')+'</li>';
+  });
+  var cl=closedFor(day);
+  if(cl.length) html+='<li>Do NOT admit visitors from '+esc(cl.join(', '))+'.'+((day===4||day===6)?'<span class="tag">NEW</span>':'')+'</li>';
+  $('#rList').innerHTML=html;
+  $('#rCities').innerHTML=CNAMES.map(function(c){return '<div><b>'+c+'</b><br><span>'+COUNTRIES[c].cities.join(', ')+'</span></div>'}).join('');
+}
+
+/* ---------- controls ---------- */
+els.call.addEventListener('click',callNext);
+els.approve.addEventListener('click',function(){decide(true)});
+els.deny.addEventListener('click',function(){decide(false)});
+function togglePause(){
+  if(!D||!running||D.over) return;
+  paused=!paused;els.veil.hidden=!paused;
+  $('#bPause').textContent=paused?'Resume':'Pause';
+  setButtons();
+}
+$('#bPause').addEventListener('click',togglePause);
+$('#bSound').addEventListener('click',function(){
+  muted=!muted;this.textContent='Sound: '+(muted?'off':'on');
+});
+$('#bRules').addEventListener('click',function(){
+  $('#rulebook').classList.toggle('open');
+});
+$('#bCloseRules').addEventListener('click',function(){
+  $('#rulebook').classList.remove('open');
+});
+window.addEventListener('resize',function(){
+  var d=els.papers.querySelectorAll('.doc');
+  if(d.length) layoutDocs(Array.prototype.slice.call(d));
+});
+document.addEventListener('keydown',function(e){
+  if(els.overlay.classList.contains('show')||e.ctrlKey||e.metaKey||e.altKey) return;
+  var k=e.key.toLowerCase();
+  if(k==='n') callNext();
+  else if(k==='a') decide(true);
+  else if(k==='d') decide(false);
+  else if(k==='p') togglePause();
+});
+
+/* ---------- main loop ---------- */
+var lastT=performance.now();
+function frame(now){
+  var dt=Math.min(100,now-lastT);lastT=now;
+  if(running&&!paused&&D&&!D.over){
+    D.elapsed+=dt/1000;
+    if(D.elapsed>=daySecs()){D.elapsed=daySecs();updateClock();timeUp()}
+    else updateClock();
+  }
+  drawScene(now);
+  requestAnimationFrame(frame);
+}
+newGame();
+titleCard();
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
