@@ -1,6 +1,9 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Papers, Please</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Checkpoint Marlow</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
 <style>
 /* Layout: HUD strip on top, then a two-column booth. Left: pixel scene, speech bar, desk with draggable papers. Right: rulebook. Stacks on phones. Single dark look by choice. */
@@ -24,6 +27,7 @@
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
+  margin:0;
   overflow:hidden;
   background:var(--bg);
   color:var(--paper);
@@ -35,6 +39,7 @@ body{
   padding-right:max(16px,env(safe-area-inset-right,0px));
 }
 button{font:inherit;color:inherit}
+[hidden]{display:none!important}
 #app{max-width:1120px;height:100%;margin:0 auto;display:flex;flex-direction:column;gap:8px}
 
 /* HUD */
@@ -54,8 +59,8 @@ button{font:inherit;color:inherit}
 @media (max-width:860px){.main{grid-template-columns:minmax(0,1fr)}}
 
 /* Scene */
-.scene{flex:0 0 clamp(110px,26vh,250px);border:3px solid var(--line);background:#000;line-height:0;overflow:hidden}
-.scene canvas{width:100%;height:100%;display:block;object-fit:cover;object-position:50% 72%;image-rendering:pixelated}
+.scene{flex:0 0 clamp(150px,40vh,360px);border:3px solid var(--line);background:#000;line-height:0;overflow:hidden}
+.scene canvas{width:100%;height:100%;display:block;object-fit:cover;object-position:50% 30%;image-rendering:pixelated}
 .speech{flex:none;height:60px;overflow:hidden;background:#0c0c0a;color:var(--amber);padding:5px 12px;font-size:20px;line-height:1.05;border:3px solid var(--line);border-top:0}
 .speech b{font-family:var(--font-display);font-size:9px;letter-spacing:.12em;color:#8d8868;display:block;margin-bottom:3px;font-weight:400}
 
@@ -154,6 +159,8 @@ table.sum td:last-child{text-align:right;font-variant-numeric:tabular-nums}
   .doc.in,.stamp{animation:none}
 }
 </style>
+</head>
+<body>
 
 <div id="app">
   <div class="hud">
@@ -810,5 +817,5 @@ titleCard();
 requestAnimationFrame(frame);
 })();
 </script>
-
-</body></html>
+</body>
+</html>
